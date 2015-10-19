@@ -95,30 +95,45 @@ if __name__ == "__main__" :
 		label = tmpLine.split(",")
 		yHatAll.append(mapping[label[1]])
 
-	def MyUpdate(paramaters, gradients):
-		mu = numpy.float32(0.001)
+	def MyUpdate(paramaters, momentum):
+		#mu = numpy.float32(0.001)
 		paramaters_update = \
-		[(p, p - mu * g) for p, g in izip(paramaters, gradients) ]
+		[(p, p + v) for p, v in izip(paramaters, momentum) ]
+		return paramaters_update
+
+	def VUpdate(momentum, gradients):
+		mu = numpy.float32(0.0001)
+		l = numpy.float32(0.9)
+		paramaters_update = \
+		[(v, l * v - mu * g) for v, g in izip(momentum, gradients) ]
 		return paramaters_update
 	
+
+	Vw1 = theano.shared(numpy.zeros((128,39), dtype='float32'))
+	Vb1 = theano.shared(numpy.zeros((128),dtype='float32'))
+	Vw2 = theano.shared(numpy.zeros((48,128), dtype='float32'))
+	Vb2 = theano.shared(numpy.zeros((48),dtype='float32'))
+
+	momentum = [Vw1, Vb1, Vw2, Vb2]
+
 	x = T.matrix(dtype='float32')
-	w = theano.shared(numpy.random.randn(128,39).astype(dtype='float32'))
+	w1 = theano.shared(numpy.random.normal(0,0.1,(128,39)).astype(dtype='float32'))
 	b1 = theano.shared(numpy.ones((128),dtype='float32'))
 	b2 = theano.shared(numpy.ones((48),dtype='float32'))
 
 	#print x.type
 
-	wy = theano.shared(numpy.random.randn(48,128).astype(dtype='float32'))
+	w2 = theano.shared(numpy.random.normal(0,0.1,(48,128)).astype(dtype='float32'))
 	
-	z1 = T.dot(w,x) + b1.dimshuffle(0,'x')
+	z1 = T.dot(w1,x) + b1.dimshuffle(0,'x')
 	a1 = 1/(1+T.exp(-z1))
-	z2 = T.dot(wy, a1) + b2.dimshuffle(0,'x')
+	z2 = T.dot(w2, a1) + b2.dimshuffle(0,'x')
 	y = 1/(1+T.exp(-z2))
 	
 	y_hat = T.matrix(dtype='float32')
 	cost = T.sum((y-y_hat)**2)
 
-	gradients = T.grad(cost, [w, b1, wy, b2])
+	gradients = T.grad(cost, [w1, b1, w2, b2])
 
 	neuron1 = theano.function(inputs=[x],outputs=a1)
 	neuron2 = theano.function(inputs=[a1],outputs=y)
@@ -126,7 +141,8 @@ if __name__ == "__main__" :
 	#mu = numpy.float32(0.1)
 	#print mu
 	#print type(mu)
-	train = theano.function(inputs=[x, y_hat], updates=MyUpdate([w, b1, wy, b2], gradients), outputs=cost)
+	movement = theano.function(inputs=[x, y_hat], updates=VUpdate(momentum, gradients))
+	train = theano.function(inputs=[x, y_hat], updates=MyUpdate([w1, b1, w2, b2], momentum), outputs=cost)
 	test = theano.function(inputs=[x], outputs=y)
 	#x = numpy.matrix([[1,1],[-1,1],[1,1]], dtype='float32')#[[1, -1, 1],[1, 1, 1]]
 	#x = numpy.array(x).astype(dtype='float32')
@@ -139,12 +155,17 @@ if __name__ == "__main__" :
 		dataSize = len(xAll[0])
 		xBatch, yHatBatch = mkBatch(xAll, yHatAll, dataSize, 100)
 		for i in range(100):
+			movement(xBatch[i],yHatBatch[i])
 			cost += train(xBatch[i],yHatBatch[i])
 		cost/=100
+		if cost < 90:
+			break
 		print >> sys.stderr, cost
 
-	print test(xBatch[0])
-	print yHatBatch[0]
+	for i in range(100):
+		print xBatch[i]
+		print yHatBatch[i]
+		print "-------------------"
 	
 	# s = time.time()
 	# for i in range(1000):
