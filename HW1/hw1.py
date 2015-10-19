@@ -5,7 +5,89 @@ import random
 from itertools import izip
 import time
 
+
+def mkBatch(xAll, yHatAll, dataSize, batchNumber):
+	xBatch = []
+	yHatBatch = []
+	index = 0
+	batchCnt = 0
+	allData = len(yHatAll)
+	flag = False
+	while flag == False:
+		if index >= allData:
+			break
+		xBatch.append([])
+		yHatBatch.append([])
+
+		# for yHatBatch
+		for i in range(48):
+			yHatBatch[batchCnt].append([])
+			for j in range(index, index + batchNumber):
+				if j >= allData:
+					flag = True
+					break
+
+				##### means that this should be 0
+				if i != yHatAll[j]:
+					yHatBatch[batchCnt][i].append(0)
+				else:
+					yHatBatch[batchCnt][i].append(1)
+
+		# for xBatch
+		for i in range(dataSize):
+			xBatch[batchCnt].append([])
+			for j in range(index, index + batchNumber):
+				if j >= allData:
+					flag = True
+					break
+				xBatch[batchCnt][i].append(xAll[j][i])
+			if flag:
+				break
+		index += batchNumber
+		batchCnt += 1
+	x = []
+	y_hat = []
+	for i in xBatch:
+		x.append(numpy.matrix(i,dtype='float32'))
+	for i in yHatBatch:
+		y_hat.append(numpy.matrix(i,dtype='float32'))
+
+	return x, y_hat
+		
+
+def makeMapping(mapFile):
+	mapping = {}
+	for i in range(100000):
+		tmpLine = mapFile.readline().strip()
+		if tmpLine == "":
+			break
+		label = tmpLine.split()[0]
+		mapping[label] = i
+	return mapping
+
+
 if __name__ == "__main__" :
+
+
+	trainFile = open("miniData", "r")
+	labelFile = open("miniTrain", "r")
+	mapFile = open("48_39.map", "r")
+
+	mapping = makeMapping(mapFile)
+
+	xAll = []
+	yHatAll = []
+	while(True):
+		tmpLine = trainFile.readline()
+		if tmpLine == "":
+			break
+		features = tmpLine.split()
+		features.pop(0)
+		xAll.append(features)
+
+		tmpLine = labelFile.readline().strip()
+		label = tmpLine.split(",")
+		yHatAll.append(mapping[label[1]])
 
 	def MyUpdate(paramaters, gradients):
 		mu = numpy.float32(0.1)
@@ -14,12 +96,12 @@ if __name__ == "__main__" :
 		return paramaters_update
 	
 	x = T.matrix(dtype='float32')
-	w = theano.shared(numpy.asmatrix(numpy.ones((4,3),dtype='float32')))
-	b = theano.shared(numpy.ones((4),dtype='float32'))
+	w = theano.shared(numpy.asmatrix(numpy.ones((128,39),dtype='float32')))
+	b = theano.shared(numpy.ones((128),dtype='float32'))
 
 	#print x.type
 
-	wy = theano.shared(numpy.asmatrix(numpy.ones((3,4),dtype='float32')))
+	wy = theano.shared(numpy.asmatrix(numpy.ones((48,128),dtype='float32')))
 	
 	a1 = 1/(1+T.exp(-1*(T.dot(w,x) + b.dimshuffle(0,'x'))))
 	y = 1/(1+T.exp(-1*(T.dot(wy, a1))))
@@ -43,17 +125,25 @@ if __name__ == "__main__" :
 	y_hat = numpy.matrix([[0,1],[1,0],[0,0]], dtype='float32')#[[0, 1, 0],[1, 0, 0]]
 	#x = numpy.array(y_hat).astype(dtype='float32')
 
+	for t in range(1000):
+		cost = 0
+		dataSize = len(xAll[0])
+		xBatch, yHatBatch = mkBatch(xAll, yHatAll, dataSize, 6)
+		for i in range(10):
+			cost+=train(xBatch[i],yHatBatch[i])
+		cost/=10
+		print cost
 	
-	s = time.time()
-	for i in range(1000):
-		#print "--------"+str(i+1)+"--------"
-		train(x, y_hat)
-		test(x)
-		# print w.get_value(), b.get_value()
-		# print wy.get_value()
-	f = time.time()
+	# s = time.time()
+	# for i in range(1000):
+	# 	print "--------"+str(i+1)+"--------"
+	# 	train(x, y_hat)
+	# 	test(x)
+	# 	print w.get_value(), b.get_value()
+	# 	print wy.get_value()
+	# f = time.time()
 
-	print f-s
+	# print f-s
 	
 	
 	"""
