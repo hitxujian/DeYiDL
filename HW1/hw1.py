@@ -4,6 +4,7 @@ import numpy
 import random
 from itertools import izip
 import time
+import sys
 
 
 def mkBatch(xAll, yHatAll, dataSize, batchNumber):
@@ -140,7 +141,7 @@ if __name__ == "__main__" :
 		for i in range(100):
 			cost += train(xBatch[i],yHatBatch[i])
 		cost/=100
-		print cost
+		print >> sys.stderr, cost
 
 	print test(xBatch[0])
 	print yHatBatch[0]
