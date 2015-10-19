@@ -6,7 +6,7 @@ from itertools import izip
 import time
 
 
-def mkBatch(xAll, yHatAll, dataSize, batchNumber):
+def mkBatch(xAll, yHatAll, dataSize, batchSize):
 	xBatch = []
 	yHatBatch = []
 	index = 0
@@ -22,7 +22,7 @@ def mkBatch(xAll, yHatAll, dataSize, batchNumber):
 		# for yHatBatch
 		for i in range(48):
 			yHatBatch[batchCnt].append([])
-			for j in range(index, index + batchNumber):
+			for j in range(index, index + batchSize):
 				if j >= allData:
 					flag = True
 					break
@@ -36,14 +36,14 @@ def mkBatch(xAll, yHatAll, dataSize, batchNumber):
 		# for xBatch
 		for i in range(dataSize):
 			xBatch[batchCnt].append([])
-			for j in range(index, index + batchNumber):
+			for j in range(index, index + batchSize):
 				if j >= allData:
 					flag = True
 					break
 				xBatch[batchCnt][i].append(xAll[j][i])
 			if flag:
 				break
-		index += batchNumber
+		index += batchSize
 		batchCnt += 1
 	x = []
 	y_hat = []
@@ -69,8 +69,8 @@ def makeMapping(mapFile):
 if __name__ == "__main__" :
 
 
-	trainFile = open("miniData", "r")
-	labelFile = open("miniTrain", "r")
+	trainFile = open("mediumData", "r")
+	labelFile = open("mediumLabel", "r")
 	mapFile = open("48_39.map", "r")
 
 	mapping = makeMapping(mapFile)
@@ -90,7 +90,7 @@ if __name__ == "__main__" :
 		yHatAll.append(mapping[label[1]])
 
 	def MyUpdate(paramaters, gradients):
-		mu = numpy.float32(0.05)
+		mu = numpy.float32(0.01)
 		paramaters_update = \
 		[(p, p - mu * g) for p, g in izip(paramaters, gradients) ]
 		return paramaters_update
@@ -131,14 +131,16 @@ if __name__ == "__main__" :
 	for t in range(10000):
 		cost = 0
 		dataSize = len(xAll[0])
-		xBatch, yHatBatch = mkBatch(xAll, yHatAll, dataSize, 6)
-		for i in range(10):
+		xBatch, yHatBatch = mkBatch(xAll, yHatAll, dataSize, 100)
+		for i in range(100):
 			cost += train(xBatch[i],yHatBatch[i])
 		cost/=10
 		print cost
-
-	print test(xBatch[0])
-	print yHatBatch[0]
+		
+	for i in range(10):
+		print test(xBatch[i])
+		print yHatBatch[i]
+		print "--------------------------------"
 	
 	# s = time.time()
 	# for i in range(1000):
