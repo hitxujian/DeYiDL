@@ -3,7 +3,7 @@
 import numpy
 import random
 
-# batchNumber represents how many data are in one batch
+# batchNumber represents how many batches there are
 # dataSize represents how many features in one data
 def mkBatch(xAll, yHatAll, dataSize, batchNumber):
 	xBatch = []
@@ -11,6 +11,11 @@ def mkBatch(xAll, yHatAll, dataSize, batchNumber):
 	index = 0
 	batchCnt = 0
 	allData = len(yHatAll)
+
+	batchSize = allData // batchNumber 
+	if allData % batchNumber != 0:
+		batchSize += 1
+
 	flag = False
 	while flag == False:
 		if index >= allData:
@@ -21,7 +26,7 @@ def mkBatch(xAll, yHatAll, dataSize, batchNumber):
 		# for yHatBatch
 		for i in range(48):
 			yHatBatch[batchCnt].append([])
-			for j in range(index, index + batchNumber):
+			for j in range(index, index + batchSize):
 				if j >= allData:
 					flag = True
 					break
@@ -35,14 +40,14 @@ def mkBatch(xAll, yHatAll, dataSize, batchNumber):
 		# for xBatch
 		for i in range(dataSize):
 			xBatch[batchCnt].append([])
-			for j in range(index, index + batchNumber):
+			for j in range(index, index + batchSize):
 				if j >= allData:
 					flag = True
 					break
 				xBatch[batchCnt][i].append(xAll[j][i])
 			if flag:
 				break
-		index += batchNumber
+		index += batchSize
 		batchCnt += 1
 	return xBatch, yHatBatch
 		
@@ -91,46 +96,3 @@ xBatch, yHatBatch = mkBatch(xAll, yHatAll, dataSize, 10)
 print xBatch
 print yHatBatch
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-"""
-x = T.vector()
-w = theano.shared(numpy.array([-1., 1.]))
-b = theano.shared(0.)
-
-z = T.dot(w, x) + b
-y = 1 / (1 + T.exp(-z))
-
-neuron = theano.function([x], y)
-
-y_hat = T.scalar()
-cost = T.sum((y - y_hat) ** 2)
-dw, db = T.grad(cost, [w, b])
-gradient = theano.function(inputs=[x, y_hat], updates=[(w, w - 0.1 * dw), (b, b - 0.1 * db)])
-
-
-x = [1, -1]
-y_hat = 1
-
-for i in range(100):
-	
-	print neuron(x)
-	dw, db = gradient(x, y_hat)
-	w.set_value(w.get_value() - 0.1 * dw)
-	b.set_value(b.get_value() - 0.1 * db)
-	print w.get_value(), b.get_value()
-
-"""
