@@ -4,6 +4,7 @@ import numpy
 import random
 from itertools import izip
 import time
+import sys
 
 
 def mkBatch(xAll, yHatAll, dataSize, batchNumber):
@@ -12,6 +13,11 @@ def mkBatch(xAll, yHatAll, dataSize, batchNumber):
 	index = 0
 	batchCnt = 0
 	allData = len(yHatAll)
+
+	batchSize = allData // batchNumber 
+	if allData % batchNumber != 0:
+		batchSize += 1
+
 	flag = False
 	while flag == False:
 		if index >= allData:
@@ -22,7 +28,7 @@ def mkBatch(xAll, yHatAll, dataSize, batchNumber):
 		# for yHatBatch
 		for i in range(48):
 			yHatBatch[batchCnt].append([])
-			for j in range(index, index + batchNumber):
+			for j in range(index, index + batchSize):
 				if j >= allData:
 					flag = True
 					break
@@ -36,14 +42,14 @@ def mkBatch(xAll, yHatAll, dataSize, batchNumber):
 		# for xBatch
 		for i in range(dataSize):
 			xBatch[batchCnt].append([])
-			for j in range(index, index + batchNumber):
+			for j in range(index, index + batchSize):
 				if j >= allData:
 					flag = True
 					break
 				xBatch[batchCnt][i].append(xAll[j][i])
 			if flag:
 				break
-		index += batchNumber
+		index += batchSize
 		batchCnt += 1
 	x = []
 	y_hat = []
@@ -95,11 +101,11 @@ if __name__ == "__main__" :
 		[(p, p - mu * g) for p, g in izip(paramaters, gradients) ]
 		return paramaters_update
 	
-	v = T.scalar()
+	
 	x = T.matrix(dtype='float32')
 	w = theano.shared(numpy.random.randn(128,39).astype(dtype='float32'))
-	b1 = theano.shared(numpy.random.randn(128).astype(dtype='float32'))
-	b2 = theano.shared(numpy.random.randn(48).astype(dtype='float32'))
+	b1 = theano.shared(numpy.ones(128).astype(dtype='float32'))
+	b2 = theano.shared(numpy.ones(48).astype(dtype='float32'))
 
 	#print x.type
 
@@ -121,20 +127,15 @@ if __name__ == "__main__" :
 
 	train = theano.function(inputs=[x, y_hat], updates=MyUpdate([w, b1, wy, b2], gradients), outputs=cost)
 	test = theano.function(inputs=[x], outputs=y)
-	#x = numpy.matrix([[1,1],[-1,1],[1,1]], dtype='float32')#[[1, -1, 1],[1, 1, 1]]
-	#x = numpy.array(x).astype(dtype='float32')
-	#print x.type.dtype
-	#y_hat = numpy.matrix([[0,1],[1,0],[0,0]], dtype='float32')#[[0, 1, 0],[1, 0, 0]]
-	#x = numpy.array(y_hat).astype(dtype='float32')
-
-	for t in range(10000):
+	
+	for t in range(50000):
 		cost = 0
 		dataSize = len(xAll[0])
 		xBatch, yHatBatch = mkBatch(xAll, yHatAll, dataSize, 10)
 		for i in range(10):
 			cost += train(xBatch[i],yHatBatch[i])
 		cost/=10
-		print cost
+		print >> sys.stderr, cost
 
 	for i in range(10):
 		print test(xBatch[i])
