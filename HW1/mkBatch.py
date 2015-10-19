@@ -44,7 +44,14 @@ def mkBatch(xAll, yHatAll, dataSize, batchNumber):
 				break
 		index += batchNumber
 		batchCnt += 1
-	return xBatch, yHatBatch
+	x = []
+	y_hat = []
+	for i in xBatch:
+		x.append(numpy.matrix(i,dtype='float32'))
+	for i in yHatBatch:
+		y_hat.append(numpy.matrix(i,dtype='float32'))
+
+	return x, y_hat
 		
 
 def makeMapping(mapFile):

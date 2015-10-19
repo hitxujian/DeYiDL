@@ -6,7 +6,7 @@ from itertools import izip
 import time
 
 
-def mkBatch(xAll, yHatAll, dataSize, batchSize):
+def mkBatch(xAll, yHatAll, dataSize, batchNumber):
 	xBatch = []
 	yHatBatch = []
 	index = 0
@@ -22,7 +22,7 @@ def mkBatch(xAll, yHatAll, dataSize, batchSize):
 		# for yHatBatch
 		for i in range(48):
 			yHatBatch[batchCnt].append([])
-			for j in range(index, index + batchSize):
+			for j in range(index, index + batchNumber):
 				if j >= allData:
 					flag = True
 					break
@@ -36,14 +36,14 @@ def mkBatch(xAll, yHatAll, dataSize, batchSize):
 		# for xBatch
 		for i in range(dataSize):
 			xBatch[batchCnt].append([])
-			for j in range(index, index + batchSize):
+			for j in range(index, index + batchNumber):
 				if j >= allData:
 					flag = True
 					break
 				xBatch[batchCnt][i].append(xAll[j][i])
 			if flag:
 				break
-		index += batchSize
+		index += batchNumber
 		batchCnt += 1
 	x = []
 	y_hat = []
@@ -69,8 +69,8 @@ def makeMapping(mapFile):
 if __name__ == "__main__" :
 
 
-	trainFile = open("mediumData", "r")
-	labelFile = open("mediumLabel", "r")
+	trainFile = open("miniData", "r")
+	labelFile = open("miniTrain", "r")
 	mapFile = open("48_39.map", "r")
 
 	mapping = makeMapping(mapFile)
@@ -90,15 +90,16 @@ if __name__ == "__main__" :
 		yHatAll.append(mapping[label[1]])
 
 	def MyUpdate(paramaters, gradients):
-		mu = numpy.float32(0.01)
+		mu = numpy.float32(0.0001)
 		paramaters_update = \
 		[(p, p - mu * g) for p, g in izip(paramaters, gradients) ]
 		return paramaters_update
 	
+	v = T.scalar()
 	x = T.matrix(dtype='float32')
 	w = theano.shared(numpy.random.randn(128,39).astype(dtype='float32'))
-	b1 = theano.shared(numpy.ones((128),dtype='float32'))
-	b2 = theano.shared(numpy.ones((48),dtype='float32'))
+	b1 = theano.shared(numpy.random.randn(128).astype(dtype='float32'))
+	b2 = theano.shared(numpy.random.randn(48).astype(dtype='float32'))
 
 	#print x.type
 
@@ -112,15 +113,13 @@ if __name__ == "__main__" :
 	y_hat = T.matrix(dtype='float32')
 	cost = T.sum((y-y_hat)**2)
 
-	gradients = T.grad(cost, [w, b1, wy])
+	gradients = T.grad(cost, [w, b1, wy, b2])
 
 	neuron1 = theano.function(inputs=[x],outputs=a1)
 	neuron2 = theano.function(inputs=[a1],outputs=y)
 
-	#mu = numpy.float32(0.1)
-	#print mu
-	#print type(mu)
-	train = theano.function(inputs=[x, y_hat], updates=MyUpdate([w, b1, wy], gradients), outputs=cost)
+
+	train = theano.function(inputs=[x, y_hat], updates=MyUpdate([w, b1, wy, b2], gradients), outputs=cost)
 	test = theano.function(inputs=[x], outputs=y)
 	#x = numpy.matrix([[1,1],[-1,1],[1,1]], dtype='float32')#[[1, -1, 1],[1, 1, 1]]
 	#x = numpy.array(x).astype(dtype='float32')
@@ -131,12 +130,12 @@ if __name__ == "__main__" :
 	for t in range(10000):
 		cost = 0
 		dataSize = len(xAll[0])
-		xBatch, yHatBatch = mkBatch(xAll, yHatAll, dataSize, 100)
-		for i in range(100):
+		xBatch, yHatBatch = mkBatch(xAll, yHatAll, dataSize, 10)
+		for i in range(10):
 			cost += train(xBatch[i],yHatBatch[i])
 		cost/=10
 		print cost
-		
+
 	for i in range(10):
 		print test(xBatch[i])
 		print yHatBatch[i]
