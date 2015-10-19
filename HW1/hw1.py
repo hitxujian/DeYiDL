@@ -118,8 +118,8 @@ if __name__ == "__main__" :
 
 	x = T.matrix(dtype='float32')
 	w1 = theano.shared(numpy.random.normal(0,0.1,(128,39)).astype(dtype='float32'))
-	b1 = theano.shared(numpy.ones((128),dtype='float32'))
-	b2 = theano.shared(numpy.ones((48),dtype='float32'))
+	b1 = theano.shared(numpy.random.normal(0,0.1,128).astype(dtype='float32'))
+	b2 = theano.shared(numpy.random.normal(0,0.1,48).astype(dtype='float32'))
 
 	#print x.type
 
