@@ -95,7 +95,7 @@ if __name__ == "__main__" :
 		yHatAll.append(mapping[label[1]])
 
 	def MyUpdate(paramaters, gradients):
-		mu = numpy.float32(0.05)
+		mu = numpy.float32(0.001)
 		paramaters_update = \
 		[(p, p - mu * g) for p, g in izip(paramaters, gradients) ]
 		return paramaters_update
@@ -133,13 +133,13 @@ if __name__ == "__main__" :
 	#y_hat = numpy.matrix([[0,1],[1,0],[0,0]], dtype='float32')#[[0, 1, 0],[1, 0, 0]]
 	#x = numpy.array(y_hat).astype(dtype='float32')
 
-	for t in range(10000):
+	for t in range(50000):
 		cost = 0
 		dataSize = len(xAll[0])
-		xBatch, yHatBatch = mkBatch(xAll, yHatAll, dataSize, 10)
-		for i in range(10):
+		xBatch, yHatBatch = mkBatch(xAll, yHatAll, dataSize, 100)
+		for i in range(100):
 			cost += train(xBatch[i],yHatBatch[i])
-		cost/=10
+		cost/=100
 		print cost
 
 	print test(xBatch[0])
