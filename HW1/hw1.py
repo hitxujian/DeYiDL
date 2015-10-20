@@ -120,7 +120,7 @@ def makeMapping(mapFile):
 	return mapping, remapping
 
 def MyUpdate(paramaters, gradients):
-		mu = numpy.float32(0.0001)
+		mu = numpy.float32(0.1)
 		paramaters_update = \
 		[(p, p - mu * g) for p, g in izip(paramaters, gradients) ]
 		return paramaters_update
@@ -185,11 +185,16 @@ if __name__ == "__main__" :
 	
 	z1 = T.dot(w1,x) + b1.dimshuffle(0,'x')
 	a1 = 1/(1+T.exp(-z1))
+	#a1 = (T.exp(2*z1)-1)/(T.exp(2*z1)+1)
 	z2 = T.dot(w2, a1) + b2.dimshuffle(0,'x')
-	y = 1/(1+T.exp(-z2))
+	y = T.exp(-z2)/T.sum(T.exp(-z2))
+	#y = 1/(1+T.exp(-z2))
 	
 	y_hat = T.matrix(dtype='float32')
-	cost = T.sum((y-y_hat)**2)
+	#a = y_hat.nonzero()[1]
+	#cost = -T.mean(T.log(y)[a,T.arange(y_hat.shape[1])])
+	cost = -T.mean(T.log(y)*y_hat)
+	#cost = T.sum((y-y_hat)**2)
 
 	gradients = T.grad(cost, [w1, b1, w2, b2])
 
@@ -223,7 +228,7 @@ if __name__ == "__main__" :
 	print >> sys.stderr, "Time: "+str(time.time()-s)
 	print >> sys.stderr, "done loading data"
 
-	for t in range(30):
+	for t in range(100):
 		cost = 0
 		s = time.time()
 		for i in range(batchNumber):
@@ -243,6 +248,12 @@ if __name__ == "__main__" :
 	mapFile = open("48_39.map", "r")
 
 	mapping, remapping = makeMapping(mapFile)
+
+	error = 0
+	for i in range(batchNumber):
+		error += valid(test(xBatch[0]), yHatBatch[0], 87)
+
+	print >> sys.stderr, "error num: "+str(error)
 
 	xAll = []
 	yHatAll = []
@@ -271,6 +282,7 @@ if __name__ == "__main__" :
 		f.write(remapping[i]+"\n")
 
 	print >> sys.stderr, "done writting test"
+
 
 	trainFile = open("./Data/validation_data_50000", "r")
 	labelFile = open("./Data/validation_label_50000", "r")
