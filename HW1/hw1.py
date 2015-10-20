@@ -174,12 +174,12 @@ if __name__ == "__main__" :
 
 		# if cost < 90:
 		# 	break
-		print >> sys.stderr, cost
+	# 	print >> sys.stderr, cost
 
-	for i in range(100):
-		print xBatch[i]
-		print yHatBatch[i]
-		print "-------------------"
+	# for i in range(100):
+	# 	print xBatch[i]
+	# 	print yHatBatch[i]
+	# 	print "-------------------"
 	
 	# s = time.time()
 	# for i in range(1000):
