@@ -7,6 +7,27 @@ import time
 import sys
 
 
+def valid(yBatch, yHatBatch, batchSize):
+	yHat = []
+	y = []
+
+
+	for i in range(batchSize):
+		maxValue = 0
+		maxIndex = 0
+
+		for j in range(48):
+			if yBatch[i][j] > maxValue:
+				maxValue = yBatch[i][j]
+				maxIndex = j
+			if yHatBatch[i][j] == 1:
+				yHat.append(j)		
+		y.append(maxIndex)
+	
+
+	print "yHat: " + yHat
+	print "y:    " + y		
+
 def mkBatch(xAll, yHatAll, dataSize, batchNumber):
 	xBatch = []
 	yHatBatch = []
@@ -92,7 +113,7 @@ if __name__ == "__main__" :
 		xAll.append(features)
 
 		tmpLine = labelFile.readline().strip()
-		label = tmpLine.split()
+		label = tmpLine.split("")
 		yHatAll.append(mapping[label[1]])
 
 	def MyUpdate(paramaters, gradients):
@@ -178,8 +199,12 @@ if __name__ == "__main__" :
 		print >> sys.stderr, cost
 		
 	for i in range(10):
+		"""
 		print test(xBatch[i])
 		print yHatBatch[i]
+		"""
+		valid(test(xBatch[i]), yHatBatch[i])
+
 		print "--------------------------------"
 	
 	# s = time.time()
