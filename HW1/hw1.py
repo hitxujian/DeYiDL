@@ -75,8 +75,8 @@ def makeMapping(mapFile):
 if __name__ == "__main__" :
 
 
-	trainFile = open("mediumData", "r")
-	labelFile = open("mediumLabel", "r")
+	trainFile = open("miniData", "r")
+	labelFile = open("miniTrain", "r")
 	mapFile = open("48_39.map", "r")
 
 	mapping = makeMapping(mapFile)
@@ -94,6 +94,12 @@ if __name__ == "__main__" :
 		tmpLine = labelFile.readline().strip()
 		label = tmpLine.split(",")
 		yHatAll.append(mapping[label[1]])
+
+	def OldMyUpdate(paramaters, gradients):
+		mu = numpy.float32(0.001)
+		paramaters_update = \
+		[(p, p - mu * g) for p, g in izip(paramaters, gradients) ]
+		return paramaters_update
 
 	def MyUpdate(paramaters, momentum):
 		#mu = numpy.float32(0.001)
@@ -147,6 +153,7 @@ if __name__ == "__main__" :
 	Decay = theano.function(inputs=[],updates=LRUpdate(de))
 	movement = theano.function(inputs=[x, y_hat], updates=VUpdate(momentum, gradients, de))
 	train = theano.function(inputs=[x, y_hat], updates=MyUpdate([w1, b1, w2, b2], momentum), outputs=cost)
+	oldtrain = theano.function(inputs=[x, y_hat], updates=OldMyUpdate([w1, b1, w2, b2], gradients), outputs=cost)
 	test = theano.function(inputs=[x], outputs=y)
 	validation = theano.function(inputs=[x, y_hat], outputs=cost)
 	#x = numpy.matrix([[1,1],[-1,1],[1,1]], dtype='float32')#[[1, -1, 1],[1, 1, 1]]
@@ -157,29 +164,32 @@ if __name__ == "__main__" :
 	valiMini = 1000000000000000
 	minCost = 100000000000000
 	dataSize = len(xAll[0])
-	xBatch, yHatBatch = mkBatch(xAll, yHatAll, dataSize, 100)
-	for t in range(50000):
+	xBatch, yHatBatch = mkBatch(xAll, yHatAll, dataSize, 10)
+	for t in range(10000):
 		cost = 0
 		valiCost = 0
-		for i in range(100):
-			movement(xBatch[i],yHatBatch[i])
-			cost += train(xBatch[i],yHatBatch[i])
-			Decay()
-		cost/=100
-		if cost<minCost:
-			minCost = cost
-		elif cost>=minCost and t>100:
-			break
+		dataSize = len(xAll[0])
+		xBatch, yHatBatch = mkBatch(xAll, yHatAll, dataSize, 10)
+		for i in range(10):
+			# movement(xBatch[i],yHatBatch[i])
+			# cost += train(xBatch[i],yHatBatch[i])
+			# Decay()
+			cost+= oldtrain(xBatch[i],yHatBatch[i])
+		cost/=10
+		# if cost<minCost:
+		# 	minCost = cost
+		# elif cost>=minCost and t>100:
+		# 	break
 
 
 		# if cost < 90:
 		# 	break
-	# 	print >> sys.stderr, cost
+		print >> sys.stderr, cost
 
-	# for i in range(100):
-	# 	print xBatch[i]
-	# 	print yHatBatch[i]
-	# 	print "-------------------"
+	for i in range(10):
+		print xBatch[i]
+		print yHatBatch[i]
+		print "-------------------"
 	
 	# s = time.time()
 	# for i in range(1000):
