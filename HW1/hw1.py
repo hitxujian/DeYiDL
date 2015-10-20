@@ -4,14 +4,20 @@ import numpy
 import random
 from itertools import izip
 import time
+import sys
 
 
-def mkBatch(xAll, yHatAll, dataSize, batchSize):
+def mkBatch(xAll, yHatAll, dataSize, batchNumber):
 	xBatch = []
 	yHatBatch = []
 	index = 0
 	batchCnt = 0
 	allData = len(yHatAll)
+
+	batchSize = allData // batchNumber 
+	if allData % batchNumber != 0:
+		batchSize += 1
+
 	flag = False
 	while flag == False:
 		if index >= allData:
@@ -69,8 +75,8 @@ def makeMapping(mapFile):
 if __name__ == "__main__" :
 
 
-	trainFile = open("mediumData", "r")
-	labelFile = open("mediumLabel", "r")
+	trainFile = open("miniData", "r")
+	labelFile = open("miniTrain", "r")
 	mapFile = open("48_39.map", "r")
 
 	mapping = makeMapping(mapFile)
@@ -94,25 +100,50 @@ if __name__ == "__main__" :
 		paramaters_update = \
 		[(p, p - mu * g) for p, g in izip(paramaters, gradients) ]
 		return paramaters_update
+	def MMyUpdate(paramaters, momentum):
+		#mu = numpy.float32(0.001)
+		paramaters_update = \
+		[(p, p + v) for p, v in izip(paramaters, momentum) ]
+		return paramaters_update
+
+	def MVUpdate(momentum, gradients, learningRate):
+		#mu = numpy.float32(learningRate)
+		l = numpy.float32(0.9)
+		paramaters_update = \
+		[(v, l * v - learningRate * g) for v, g in izip(momentum, gradients) ]
+		return paramaters_update
+	def MLRUpdate(learningRate):
+		rateDecay = numpy.float32(0.9999)
+		paramaters_update = \
+		[(learningRate, rateDecay * learningRate)]
+		return paramaters_update
+
+	Vw1 = theano.shared(numpy.zeros((128,39), dtype='float32'))
+	Vb1 = theano.shared(numpy.zeros((128),dtype='float32'))
+	Vw2 = theano.shared(numpy.zeros((48,128), dtype='float32'))
+	Vb2 = theano.shared(numpy.zeros((48),dtype='float32'))
+	momentum = [Vw1, Vb1, Vw2, Vb2]
 	
+	# x = T.matrix(dtype='float32')
+	# w = theano.shared(numpy.random.randn(128,39).astype(dtype='float32'))
+	# b1 = theano.shared(numpy.ones((128),dtype='float32'))
+	# b2 = theano.shared(numpy.ones((48),dtype='float32'))
+	# wy = theano.shared(numpy.random.randn(48,128).astype(dtype='float32'))
 	x = T.matrix(dtype='float32')
-	w = theano.shared(numpy.random.randn(128,39).astype(dtype='float32'))
-	b1 = theano.shared(numpy.ones((128),dtype='float32'))
-	b2 = theano.shared(numpy.ones((48),dtype='float32'))
-
-	#print x.type
-
-	wy = theano.shared(numpy.random.randn(48,128).astype(dtype='float32'))
+	w1 = theano.shared(numpy.random.normal(0,0.1,(128,39)).astype(dtype='float32'))
+	b1 = theano.shared(numpy.random.normal(0,0.1,128).astype(dtype='float32'))
+	b2 = theano.shared(numpy.random.normal(0,0.1,48).astype(dtype='float32'))
+	w2 = theano.shared(numpy.random.normal(0,0.1,(48,128)).astype(dtype='float32'))
 	
-	z1 = T.dot(w,x) + b1.dimshuffle(0,'x')
+	z1 = T.dot(w1,x) + b1.dimshuffle(0,'x')
 	a1 = 1/(1+T.exp(-z1))
-	z2 = T.dot(wy, a1) + b2.dimshuffle(0,'x')
+	z2 = T.dot(w2, a1) + b2.dimshuffle(0,'x')
 	y = 1/(1+T.exp(-z2))
 	
 	y_hat = T.matrix(dtype='float32')
 	cost = T.sum((y-y_hat)**2)
 
-	gradients = T.grad(cost, [w, b1, wy])
+	gradients = T.grad(cost, [w1, b1, w2, b2])
 
 	neuron1 = theano.function(inputs=[x],outputs=a1)
 	neuron2 = theano.function(inputs=[a1],outputs=y)
@@ -120,22 +151,31 @@ if __name__ == "__main__" :
 	#mu = numpy.float32(0.1)
 	#print mu
 	#print type(mu)
-	train = theano.function(inputs=[x, y_hat], updates=MyUpdate([w, b1, wy], gradients), outputs=cost)
+	train = theano.function(inputs=[x, y_hat], updates=MyUpdate([w1, b1, w2, b2], gradients), outputs=cost)
 	test = theano.function(inputs=[x], outputs=y)
+
+
+	de = theano.shared(numpy.float32(0.0001))
+	MDecay = theano.function(inputs=[],updates=MLRUpdate(de))
+	Mmovement = theano.function(inputs=[x, y_hat], updates=MVUpdate(momentum, gradients, de))
+	Mtrain = theano.function(inputs=[x, y_hat], updates=MMyUpdate([w1, b1, w2, b2], momentum), outputs=cost)
 	#x = numpy.matrix([[1,1],[-1,1],[1,1]], dtype='float32')#[[1, -1, 1],[1, 1, 1]]
 	#x = numpy.array(x).astype(dtype='float32')
 	#print x.type.dtype
 	#y_hat = numpy.matrix([[0,1],[1,0],[0,0]], dtype='float32')#[[0, 1, 0],[1, 0, 0]]
 	#x = numpy.array(y_hat).astype(dtype='float32')
 
+	dataSize = len(xAll[0])
+	xBatch, yHatBatch = mkBatch(xAll, yHatAll, dataSize, 10)
 	for t in range(10000):
 		cost = 0
-		dataSize = len(xAll[0])
-		xBatch, yHatBatch = mkBatch(xAll, yHatAll, dataSize, 100)
-		for i in range(100):
-			cost += train(xBatch[i],yHatBatch[i])
+		for i in range(10):
+			MDecay()
+			Mmovement(xBatch[i],yHatBatch[i])
+			cost += Mtrain(xBatch[i],yHatBatch[i])
+			#cost += train(xBatch[i],yHatBatch[i])
 		cost/=10
-		print cost
+		print >> sys.stderr, cost
 		
 	for i in range(10):
 		print test(xBatch[i])
