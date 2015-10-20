@@ -11,29 +11,56 @@ def valid(yBatch, yHatBatch, batchSize):
 	yHat = []
 	y = []
 
+	print yHatBatch.item((0,0))
+	for i in range(batchSize):
+		maxValue = 0
+		maxIndex = 0
+
+		for j in range(48):
+			if yBatch[j][i] > maxValue:
+				maxValue = yBatch[j][i]
+				maxIndex = j
+			if yHatBatch.item((j,i)) == 1:
+				yHat.append(j)		
+		y.append(maxIndex)
+	
+
+	print "yHat: " 
+	print yHat
+	print "y:    " 
+	print y	
+
+	err = 0
+	for i in range(len(yHat)):
+		if yHat[i] != y[i]:
+			err += 1
+
+	return err
+
+def remap(yBatch, yHatBatch, batchSize):
+	yHat = []
+	y = []
 
 	for i in range(batchSize):
 		maxValue = 0
 		maxIndex = 0
 
 		for j in range(48):
-			if yBatch[i][j] > maxValue:
-				maxValue = yBatch[i][j]
+			if yBatch[j][i] > maxValue:
+				maxValue = yBatch[j][i]
 				maxIndex = j
-			if yHatBatch[i][j] == 1:
+			if yHatBatch.item((j,i)) == 1:
 				yHat.append(j)		
 		y.append(maxIndex)
-	
 
-	print "yHat: " + yHat
-	print "y:    " + y		
+	return y
 
 def mkBatch(xAll, yHatAll, dataSize, batchNumber):
 	xBatch = []
 	yHatBatch = []
 	index = 0
 	batchCnt = 0
-	allData = len(yHatAll)
+	allData = len(xAll)
 
 	batchSize = allData // batchNumber 
 	if allData % batchNumber != 0:
@@ -84,23 +111,48 @@ def mkBatch(xAll, yHatAll, dataSize, batchNumber):
 
 def makeMapping(mapFile):
 	mapping = {}
+	remapping = {}
 	for i in range(100000):
 		tmpLine = mapFile.readline().strip()
 		if tmpLine == "":
 			break
-		label = tmpLine.split()[0]
-		mapping[label] = i
-	return mapping
+		label = tmpLine.split()
+		mapping[label[0]] = i
+		remapping[i] = label[1]
+	return mapping, remapping
+
+def MyUpdate(paramaters, gradients):
+		mu = numpy.float32(0.01)
+		paramaters_update = \
+		[(p, p - mu * g) for p, g in izip(paramaters, gradients) ]
+		return paramaters_update
+def MMyUpdate(paramaters, momentum):
+	#mu = numpy.float32(0.001)
+	paramaters_update = \
+	[(p, p + v) for p, v in izip(paramaters, momentum) ]
+	return paramaters_update
+
+def MVUpdate(momentum, gradients, learningRate):
+	#mu = numpy.float32(learningRate)
+	l = numpy.float32(0.9)
+	paramaters_update = \
+	[(v, l * v - learningRate * g) for v, g in izip(momentum, gradients) ]
+	return paramaters_update
+def MLRUpdate(learningRate):
+	rateDecay = numpy.float32(0.9999)
+	paramaters_update = \
+	[(learningRate, rateDecay * learningRate)]
+	return paramaters_update
 
 
 if __name__ == "__main__" :
 
 
-	trainFile = open("miniData", "r")
-	labelFile = open("miniTrain", "r")
+	trainFile = open("./MLDS/fbank/train.ark", "r")
+	labelFile = open("./MLDS/label/train.lab", "r")
 	mapFile = open("48_39.map", "r")
 
-	mapping = makeMapping(mapFile)
+	mapping, remapping = makeMapping(mapFile)
 
 	xAll = []
 	yHatAll = []
@@ -113,33 +165,10 @@ if __name__ == "__main__" :
 		xAll.append(features)
 
 		tmpLine = labelFile.readline().strip()
-		label = tmpLine.split("")
+		label = tmpLine.split(",")
 		yHatAll.append(mapping[label[1]])
 
-	def MyUpdate(paramaters, gradients):
-		mu = numpy.float32(0.01)
-		paramaters_update = \
-		[(p, p - mu * g) for p, g in izip(paramaters, gradients) ]
-		return paramaters_update
-	def MMyUpdate(paramaters, momentum):
-		#mu = numpy.float32(0.001)
-		paramaters_update = \
-		[(p, p + v) for p, v in izip(paramaters, momentum) ]
-		return paramaters_update
-
-	def MVUpdate(momentum, gradients, learningRate):
-		#mu = numpy.float32(learningRate)
-		l = numpy.float32(0.9)
-		paramaters_update = \
-		[(v, l * v - learningRate * g) for v, g in izip(momentum, gradients) ]
-		return paramaters_update
-	def MLRUpdate(learningRate):
-		rateDecay = numpy.float32(0.9999)
-		paramaters_update = \
-		[(learningRate, rateDecay * learningRate)]
-		return paramaters_update
-
-	Vw1 = theano.shared(numpy.zeros((128,39), dtype='float32'))
+	Vw1 = theano.shared(numpy.zeros((128,69), dtype='float32'))
 	Vb1 = theano.shared(numpy.zeros((128),dtype='float32'))
 	Vw2 = theano.shared(numpy.zeros((48,128), dtype='float32'))
 	Vb2 = theano.shared(numpy.zeros((48),dtype='float32'))
@@ -151,7 +180,7 @@ if __name__ == "__main__" :
 	# b2 = theano.shared(numpy.ones((48),dtype='float32'))
 	# wy = theano.shared(numpy.random.randn(48,128).astype(dtype='float32'))
 	x = T.matrix(dtype='float32')
-	w1 = theano.shared(numpy.random.normal(0,0.1,(128,39)).astype(dtype='float32'))
+	w1 = theano.shared(numpy.random.normal(0,0.1,(128,69)).astype(dtype='float32'))
 	b1 = theano.shared(numpy.random.normal(0,0.1,128).astype(dtype='float32'))
 	b2 = theano.shared(numpy.random.normal(0,0.1,48).astype(dtype='float32'))
 	w2 = theano.shared(numpy.random.normal(0,0.1,(48,128)).astype(dtype='float32'))
@@ -174,6 +203,7 @@ if __name__ == "__main__" :
 	#print type(mu)
 	train = theano.function(inputs=[x, y_hat], updates=MyUpdate([w1, b1, w2, b2], gradients), outputs=cost)
 	test = theano.function(inputs=[x], outputs=y)
+	#ValiCost = theano.function(inputs=[x, y_hat], outputs=cost)
 
 
 	de = theano.shared(numpy.float32(0.0001))
@@ -185,27 +215,78 @@ if __name__ == "__main__" :
 	#print x.type.dtype
 	#y_hat = numpy.matrix([[0,1],[1,0],[0,0]], dtype='float32')#[[0, 1, 0],[1, 0, 0]]
 	#x = numpy.array(y_hat).astype(dtype='float32')
+	batchNumber = 12929
+	# ValibatchNumber = 
+	# validDataSize = 
+	# MiniCost = 1000000
+	s = time.time()
+	dataSize = len(xAll[0])
+	xBatch, yHatBatch = mkBatch(xAll, yHatAll, dataSize, batchNumber)
+	print >> sys.stderr, "Time: "+str(time.time()-s)
+	print >> sys.stderr, "done loading data"
+
+	for t in range(100):
+		cost = 0
+		s = time.time()
+		for i in range(batchNumber):
+			# MDecay()
+			# Mmovement(xBatch[i],yHatBatch[i])
+			# cost += Mtrain(xBatch[i],yHatBatch[i])
+			cost += train(xBatch[i],yHatBatch[i])
+		cost /= batchNumber
+		print >> sys.stderr, "iteration: "+str(t)
+		print >> sys.stderr, "Time: "+str(time.time()-s)
+		print >> sys.stderr, cost
+
+	print >> sys.stderr, "done training"
+
+	trainFile = open("./MLDS/fbank/test.ark", "r")
+	#labelFile = open("./Data/validation_label_50000", "r")
+	mapFile = open("48_39.map", "r")
+
+	mapping, remapping = makeMapping(mapFile)
+
+	xAll = []
+	yHatAll = []
+	while(True):
+		tmpLine = trainFile.readline().strip()
+		if tmpLine == "":
+			break
+		features = tmpLine.split()
+		features.pop(0)
+		xAll.append(features)
+
 
 	dataSize = len(xAll[0])
-	xBatch, yHatBatch = mkBatch(xAll, yHatAll, dataSize, 10)
-	for t in range(10000):
-		cost = 0
-		for i in range(10):
-			MDecay()
-			Mmovement(xBatch[i],yHatBatch[i])
-			cost += Mtrain(xBatch[i],yHatBatch[i])
-			#cost += train(xBatch[i],yHatBatch[i])
-		cost/=10
-		print >> sys.stderr, cost
-		
-	for i in range(10):
-		"""
-		print test(xBatch[i])
-		print yHatBatch[i]
-		"""
-		valid(test(xBatch[i]), yHatBatch[i])
+	xBatch, yHatBatch = mkBatch(xAll, yHatAll, dataSize, 1)
 
-		print "--------------------------------"
+	print >> sys.stderr, "done loading test data"
+	f = open("test_ans","w")
+
+	# error = valid(test(xBatch[0]), yHatBatch[0], 50000)
+
+	# print >> sys.stderr, "error num: "+str(error)
+
+	ans = remap(test(xBatch[0]), yHatBatch[0], 180406)
+
+	for i in ans:
+		f.write(remapping[i]+"\n")
+
+
+
+
+
+
+		# Vacost = 0
+		# Error = 0
+		# for i in range(ValibatchNumber):
+		# 	Error += valid(test(xBatch[i]), yHatBatch[i], 6)
+		# print >> sys.stderr, Error/validDataSize
+
+		# for i in range(ValibatchNumber):
+
+
+		# print "--------------------------------"
 	
 	# s = time.time()
 	# for i in range(1000):
