@@ -11,7 +11,6 @@ def valid(yBatch, yHatBatch, batchSize):
 	yHat = []
 	y = []
 
-	print yHatBatch.item((0,0))
 	for i in range(batchSize):
 		maxValue = 0
 		maxIndex = 0
@@ -48,9 +47,7 @@ def remap(yBatch, yHatBatch, batchSize):
 		for j in range(48):
 			if yBatch[j][i] > maxValue:
 				maxValue = yBatch[j][i]
-				maxIndex = j
-			if yHatBatch.item((j,i)) == 1:
-				yHat.append(j)		
+				maxIndex = j		
 		y.append(maxIndex)
 
 	return y
@@ -82,10 +79,11 @@ def mkBatch(xAll, yHatAll, dataSize, batchNumber):
 					break
 
 				##### means that this should be 0
-				if i != yHatAll[j]:
-					yHatBatch[batchCnt][i].append(0)
-				else:
-					yHatBatch[batchCnt][i].append(1)
+				if len(yHatAll)>0:
+					if i != yHatAll[j]:
+						yHatBatch[batchCnt][i].append(0)
+					else:
+						yHatBatch[batchCnt][i].append(1)
 
 		# for xBatch
 		for i in range(dataSize):
@@ -122,7 +120,7 @@ def makeMapping(mapFile):
 	return mapping, remapping
 
 def MyUpdate(paramaters, gradients):
-		mu = numpy.float32(0.01)
+		mu = numpy.float32(0.0001)
 		paramaters_update = \
 		[(p, p - mu * g) for p, g in izip(paramaters, gradients) ]
 		return paramaters_update
@@ -148,8 +146,8 @@ def MLRUpdate(learningRate):
 if __name__ == "__main__" :
 
 
-	trainFile = open("./MLDS/fbank/train.ark", "r")
-	labelFile = open("./MLDS/label/train.lab", "r")
+	trainFile = open("./Data/Train.data", "r")
+	labelFile = open("./Data/Train.label", "r")
 	mapFile = open("48_39.map", "r")
 
 	mapping, remapping = makeMapping(mapFile)
@@ -165,7 +163,7 @@ if __name__ == "__main__" :
 		xAll.append(features)
 
 		tmpLine = labelFile.readline().strip()
-		label = tmpLine.split(",")
+		label = tmpLine.split()
 		yHatAll.append(mapping[label[1]])
 
 	Vw1 = theano.shared(numpy.zeros((128,69), dtype='float32'))
@@ -225,7 +223,7 @@ if __name__ == "__main__" :
 	print >> sys.stderr, "Time: "+str(time.time()-s)
 	print >> sys.stderr, "done loading data"
 
-	for t in range(100):
+	for t in range(30):
 		cost = 0
 		s = time.time()
 		for i in range(batchNumber):
@@ -271,6 +269,33 @@ if __name__ == "__main__" :
 
 	for i in ans:
 		f.write(remapping[i]+"\n")
+
+	print >> sys.stderr, "done writting test"
+
+	trainFile = open("./Data/validation_data_50000", "r")
+	labelFile = open("./Data/validation_label_50000", "r")
+
+	xAll = []
+	yHatAll = []
+	while(True):
+		tmpLine = trainFile.readline().strip()
+		if tmpLine == "":
+			break
+		features = tmpLine.split()
+		features.pop(0)
+		xAll.append(features)
+
+		tmpLine = labelFile.readline().strip()
+		label = tmpLine.split()
+		yHatAll.append(mapping[label[1]])
+
+	dataSize = len(xAll[0])
+	xBatch, yHatBatch = mkBatch(xAll, yHatAll, dataSize, 1)
+
+	error = valid(test(xBatch[0]), yHatBatch[0], 50000)
+
+	print >> sys.stderr, "error num: "+str(error)
+
 
 
 
