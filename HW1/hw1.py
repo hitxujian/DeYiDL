@@ -101,11 +101,16 @@ if __name__ == "__main__" :
 		[(p, p + v) for p, v in izip(paramaters, momentum) ]
 		return paramaters_update
 
-	def VUpdate(momentum, gradients):
-		mu = numpy.float32(0.0001)
+	def VUpdate(momentum, gradients, learningRate):
+		#mu = numpy.float32(learningRate)
 		l = numpy.float32(0.9)
 		paramaters_update = \
-		[(v, l * v - mu * g) for v, g in izip(momentum, gradients) ]
+		[(v, l * v - learningRate * g) for v, g in izip(momentum, gradients) ]
+		return paramaters_update
+	def LRUpdate(learningRate):
+		rateDecay = numpy.float32(0.9999)
+		paramaters_update = \
+		[(learningRate, rateDecay * learningRate)]
 		return paramaters_update
 	
 
@@ -120,9 +125,6 @@ if __name__ == "__main__" :
 	w1 = theano.shared(numpy.random.normal(0,0.1,(128,39)).astype(dtype='float32'))
 	b1 = theano.shared(numpy.random.normal(0,0.1,128).astype(dtype='float32'))
 	b2 = theano.shared(numpy.random.normal(0,0.1,48).astype(dtype='float32'))
-
-	#print x.type
-
 	w2 = theano.shared(numpy.random.normal(0,0.1,(48,128)).astype(dtype='float32'))
 	
 	z1 = T.dot(w1,x) + b1.dimshuffle(0,'x')
@@ -141,25 +143,37 @@ if __name__ == "__main__" :
 	#mu = numpy.float32(0.1)
 	#print mu
 	#print type(mu)
-	movement = theano.function(inputs=[x, y_hat], updates=VUpdate(momentum, gradients))
+	de = theano.shared(numpy.float32(0.0001))
+	Decay = theano.function(inputs=[],updates=LRUpdate(de))
+	movement = theano.function(inputs=[x, y_hat], updates=VUpdate(momentum, gradients, de))
 	train = theano.function(inputs=[x, y_hat], updates=MyUpdate([w1, b1, w2, b2], momentum), outputs=cost)
 	test = theano.function(inputs=[x], outputs=y)
+	validation = theano.function(inputs=[x, y_hat], outputs=cost)
 	#x = numpy.matrix([[1,1],[-1,1],[1,1]], dtype='float32')#[[1, -1, 1],[1, 1, 1]]
 	#x = numpy.array(x).astype(dtype='float32')
 	#print x.type.dtype
 	#y_hat = numpy.matrix([[0,1],[1,0],[0,0]], dtype='float32')#[[0, 1, 0],[1, 0, 0]]
 	#x = numpy.array(y_hat).astype(dtype='float32')
-
+	valiMini = 1000000000000000
+	minCost = 100000000000000
+	dataSize = len(xAll[0])
+	xBatch, yHatBatch = mkBatch(xAll, yHatAll, dataSize, 100)
 	for t in range(50000):
 		cost = 0
-		dataSize = len(xAll[0])
-		xBatch, yHatBatch = mkBatch(xAll, yHatAll, dataSize, 100)
+		valiCost = 0
 		for i in range(100):
 			movement(xBatch[i],yHatBatch[i])
 			cost += train(xBatch[i],yHatBatch[i])
+			Decay()
 		cost/=100
-		if cost < 90:
+		if cost<minCost:
+			minCost = cost
+		elif cost>=minCost and t>100:
 			break
+
+
+		# if cost < 90:
+		# 	break
 		print >> sys.stderr, cost
 
 	for i in range(100):
