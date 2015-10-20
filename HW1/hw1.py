@@ -78,7 +78,7 @@ if __name__ == "__main__" :
 	xAll = []
 	yHatAll = []
 	while(True):
-		tmpLine = trainFile.readline()
+		tmpLine = trainFile.readline().strip()
 		if tmpLine == "":
 			break
 		features = tmpLine.split()
@@ -86,7 +86,7 @@ if __name__ == "__main__" :
 		xAll.append(features)
 
 		tmpLine = labelFile.readline().strip()
-		label = tmpLine.split(",")
+		label = tmpLine.split()
 		yHatAll.append(mapping[label[1]])
 
 	def MyUpdate(paramaters, gradients):
