@@ -5,24 +5,19 @@ import random
 from itertools import izip
 import time
 import sys
+from theano.compile.debugmode import DebugMode
 
 
 def valid(yBatch, yHatBatch, batchSize):
 	yHat = []
 	y = []
 
-	for i in range(batchSize):
-		maxValue = 0
-		maxIndex = 0
+	TPyBatch = numpy.transpose(yBatch)
+	TPyHatBatch = numpy.transpose(yHatBatch)
 
-		for j in range(48):
-			if yBatch[j][i] > maxValue:
-				maxValue = yBatch[j][i]
-				maxIndex = j
-			if yHatBatch.item((j,i)) == 1:
-				yHat.append(j)		
-		y.append(maxIndex)
-	
+	for i in range(batchSize):
+		yHat.append(numpy.argmax(TPyHatBatch[i]))
+		y.append(numpy.argmax(TPyBatch[i]))
 
 	print "yHat: " 
 	print yHat
@@ -36,20 +31,11 @@ def valid(yBatch, yHatBatch, batchSize):
 
 	return err
 
-def remap(yBatch, yHatBatch, batchSize):
-	yHat = []
+def remap(yBatch, batchSize):
 	y = []
-
+	TPyBatch = numpy.transpose(yBatch)
 	for i in range(batchSize):
-		maxValue = 0
-		maxIndex = 0
-
-		for j in range(48):
-			if yBatch[j][i] > maxValue:
-				maxValue = yBatch[j][i]
-				maxIndex = j		
-		y.append(maxIndex)
-
+		y.append(numpy.argmax(TPyBatch[i]))
 	return y
 
 def mkBatch(xAll, yHatAll, dataSize, batchNumber):
@@ -70,39 +56,29 @@ def mkBatch(xAll, yHatAll, dataSize, batchNumber):
 		xBatch.append([])
 		yHatBatch.append([])
 
-		# for yHatBatch
-		for i in range(48):
-			yHatBatch[batchCnt].append([])
-			for j in range(index, index + batchSize):
-				if j >= allData:
-					flag = True
-					break
-
-				##### means that this should be 0
-				if len(yHatAll)>0:
-					if i != yHatAll[j]:
-						yHatBatch[batchCnt][i].append(0)
-					else:
-						yHatBatch[batchCnt][i].append(1)
-
-		# for xBatch
-		for i in range(dataSize):
-			xBatch[batchCnt].append([])
-			for j in range(index, index + batchSize):
-				if j >= allData:
-					flag = True
-					break
-				xBatch[batchCnt][i].append(xAll[j][i])
-			if flag:
+		
+		for i in range(index, index + batchSize):
+			if i >= allData:
+				flag = True
 				break
+			# for yHatBatch
+			tmp = numpy.zeros(48)
+			if len(yHatAll) > 0:
+				tmp[yHatAll[i]] = 1
+			yHatBatch[batchCnt].append(tmp)
+
+			# for xBatch
+			xBatch[batchCnt].append(xAll[i])
 		index += batchSize
 		batchCnt += 1
 	x = []
 	y_hat = []
 	for i in xBatch:
-		x.append(numpy.matrix(i,dtype='float32'))
+		transpose = numpy.transpose(numpy.matrix(i,dtype='float32'))
+		x.append(transpose)
 	for i in yHatBatch:
-		y_hat.append(numpy.matrix(i,dtype='float32'))
+		transpose = numpy.transpose(numpy.matrix(i,dtype='float32'))
+		y_hat.append(transpose)
 
 	return x, y_hat
 		
@@ -145,9 +121,24 @@ def MLRUpdate(learningRate):
 
 if __name__ == "__main__" :
 
+	# loading training and testing data 
 
-	trainFile = open("./Data/Train.data", "r")
-	labelFile = open("./Data/Train.label", "r")
+	batchNumber = 0
+	batchSize = 0
+
+	TRAINFILE = "./Data/Train.data"
+	LABELFILE = "./Data/Train.label"
+	if TRAINFILE == "./Data/Train.data":
+		batchNumber = 38787
+		batchSize = 29
+	elif TRAINFILE == "./Data/ValidationData":
+		batchNumber = 3581
+		batchSize = 63
+
+
+	trainFile = open(TRAINFILE, "r")
+	labelFile = open(LABELFILE, "r")
+
 	mapFile = open("48_39.map", "r")
 
 	mapping, remapping = makeMapping(mapFile)
@@ -166,62 +157,57 @@ if __name__ == "__main__" :
 		label = tmpLine.split()
 		yHatAll.append(mapping[label[1]])
 
-	Vw1 = theano.shared(numpy.zeros((128,69), dtype='float32'))
-	Vb1 = theano.shared(numpy.zeros((128),dtype='float32'))
-	Vw2 = theano.shared(numpy.zeros((48,128), dtype='float32'))
+	# init movement variable
+
+	Vw1 = theano.shared(numpy.zeros((256,69), dtype='float32'))
+	Vb1 = theano.shared(numpy.zeros((256),dtype='float32'))
+	Vw2 = theano.shared(numpy.zeros((48,256), dtype='float32'))
 	Vb2 = theano.shared(numpy.zeros((48),dtype='float32'))
 	momentum = [Vw1, Vb1, Vw2, Vb2]
 	
-	# x = T.matrix(dtype='float32')
-	# w = theano.shared(numpy.random.randn(128,39).astype(dtype='float32'))
-	# b1 = theano.shared(numpy.ones((128),dtype='float32'))
-	# b2 = theano.shared(numpy.ones((48),dtype='float32'))
-	# wy = theano.shared(numpy.random.randn(48,128).astype(dtype='float32'))
+	# init dnn variable
+
 	x = T.matrix(dtype='float32')
-	w1 = theano.shared(numpy.random.normal(0,0.1,(128,69)).astype(dtype='float32'))
-	b1 = theano.shared(numpy.random.normal(0,0.1,128).astype(dtype='float32'))
-	b2 = theano.shared(numpy.random.normal(0,0.1,48).astype(dtype='float32'))
-	w2 = theano.shared(numpy.random.normal(0,0.1,(48,128)).astype(dtype='float32'))
+	b1 = theano.shared(numpy.random.normal(0,0.1,256).astype(dtype='float32'))
+	w1 = theano.shared(numpy.random.normal(0,0.1,(256,69)).astype(dtype='float32'))
+	b2 = theano.shared(numpy.random.normal(0,0.1,256).astype(dtype='float32'))
+	w2 = theano.shared(numpy.random.normal(0,0.1,(256,256)).astype(dtype='float32'))
+	b3 = theano.shared(numpy.random.normal(0,0.1,48).astype(dtype='float32'))
+	w3 = theano.shared(numpy.random.normal(0,0.1,(48,256)).astype(dtype='float32'))
 	
 	z1 = T.dot(w1,x) + b1.dimshuffle(0,'x')
-	a1 = 1/(1+T.exp(-z1))
-	#a1 = (T.exp(2*z1)-1)/(T.exp(2*z1)+1)
-	z2 = T.dot(w2, a1) + b2.dimshuffle(0,'x')
-	y = T.exp(-z2)/T.sum(T.exp(-z2))
-	#y = 1/(1+T.exp(-z2))
+	a1 = T.switch(z1<0,0,z1)#1/(1+T.exp(-z1))
+	#a1 = T.switch(z1<0.0001,0.0001,z1)#(T.exp(2*z1)-1)/(T.exp(2*z1)+1)
+	#a1 = T.switch(z1>0.9999,0.9999,z1)
+
+	z2 = T.dot(w2,a1) + b2.dimshuffle(0,'x')
+	a2 = T.switch(z2<0,0,z2)#1/(1+T.exp(-z2))#T.switch(z2<0.0001,0.0001,z2)#(T.exp(2*z2)-1)/(T.exp(2*z2)+1)
+	#a2 = T.switch(z2>0.9999,0.9999,z2)
+	#a1 = (T.exp(2*z1)-1)/(T.exp(2*z1)+1) # tan
+	z3 = T.dot(w3,a2) + b3.dimshuffle(0,'x')
+	y = T.exp(-z3)/T.sum(T.exp(-z3))
+	#1/(1+T.exp(-z3))#T.exp(-z3)/T.sum(T.exp(-z3))
+	
 	
 	y_hat = T.matrix(dtype='float32')
-	#a = y_hat.nonzero()[1]
-	#cost = -T.mean(T.log(y)[a,T.arange(y_hat.shape[1])])
-	cost = -T.mean(T.log(y)*y_hat)
+	cost = -T.mean(T.log(y)*y_hat) # softmax loss function
 	#cost = T.sum((y-y_hat)**2)
 
-	gradients = T.grad(cost, [w1, b1, w2, b2])
+	gradients = T.grad(cost, [w1, b1, w2, b2, w3, b3])
 
-	neuron1 = theano.function(inputs=[x],outputs=a1)
-	neuron2 = theano.function(inputs=[a1],outputs=y)
+	# neuron1 = theano.function(inputs=[x],outputs=a1)
+	# neuron2 = theano.function(inputs=[a1],outputs=a2)
+	# neuron3 = theano.function(inputs=[a2],outputs=y)
+	# IT = T.scalar()
 
-	#mu = numpy.float32(0.1)
-	#print mu
-	#print type(mu)
-	train = theano.function(inputs=[x, y_hat], updates=MyUpdate([w1, b1, w2, b2], gradients), outputs=cost)
+	# itera = numpy.float32(0.1*math.sqrt(IT))
+
+	train = theano.function(inputs=[x, y_hat], updates=MyUpdate([w1, b1, w2, b2, w3, b3], gradients), outputs=cost)
 	test = theano.function(inputs=[x], outputs=y)
-	#ValiCost = theano.function(inputs=[x, y_hat], outputs=cost)
 
 
-	de = theano.shared(numpy.float32(0.0001))
-	MDecay = theano.function(inputs=[],updates=MLRUpdate(de))
-	Mmovement = theano.function(inputs=[x, y_hat], updates=MVUpdate(momentum, gradients, de))
-	Mtrain = theano.function(inputs=[x, y_hat], updates=MMyUpdate([w1, b1, w2, b2], momentum), outputs=cost)
-	#x = numpy.matrix([[1,1],[-1,1],[1,1]], dtype='float32')#[[1, -1, 1],[1, 1, 1]]
-	#x = numpy.array(x).astype(dtype='float32')
-	#print x.type.dtype
-	#y_hat = numpy.matrix([[0,1],[1,0],[0,0]], dtype='float32')#[[0, 1, 0],[1, 0, 0]]
-	#x = numpy.array(y_hat).astype(dtype='float32')
-	batchNumber = 12929
-	# ValibatchNumber = 
-	# validDataSize = 
-	# MiniCost = 1000000
+
+	#batchNumber = 12929
 	s = time.time()
 	dataSize = len(xAll[0])
 	xBatch, yHatBatch = mkBatch(xAll, yHatAll, dataSize, batchNumber)
@@ -232,9 +218,6 @@ if __name__ == "__main__" :
 		cost = 0
 		s = time.time()
 		for i in range(batchNumber):
-			# MDecay()
-			# Mmovement(xBatch[i],yHatBatch[i])
-			# cost += Mtrain(xBatch[i],yHatBatch[i])
 			cost += train(xBatch[i],yHatBatch[i])
 		cost /= batchNumber
 		print >> sys.stderr, "iteration: "+str(t)
@@ -243,17 +226,16 @@ if __name__ == "__main__" :
 
 	print >> sys.stderr, "done training"
 
-	trainFile = open("./MLDS/fbank/test.ark", "r")
-	#labelFile = open("./Data/validation_label_50000", "r")
-	mapFile = open("48_39.map", "r")
-
-	mapping, remapping = makeMapping(mapFile)
-
 	error = 0
 	for i in range(batchNumber):
-		error += valid(test(xBatch[0]), yHatBatch[0], 87)
+		error += valid(test(xBatch[i]), yHatBatch[i], batchSize)
+		
+	errorRate = error/float(batchNumber*batchSize)
+	print >> sys.stderr, "Ein: "+str(errorRate) 
+	
+	print >> sys.stderr, "start loading test data"
 
-	print >> sys.stderr, "error num: "+str(error)
+	trainFile = open("./MLDS/fbank/test.ark", "r")
 
 	xAll = []
 	yHatAll = []
@@ -265,23 +247,21 @@ if __name__ == "__main__" :
 		features.pop(0)
 		xAll.append(features)
 
-
 	dataSize = len(xAll[0])
 	xBatch, yHatBatch = mkBatch(xAll, yHatAll, dataSize, 1)
 
 	print >> sys.stderr, "done loading test data"
+
 	f = open("test_ans","w")
 
-	# error = valid(test(xBatch[0]), yHatBatch[0], 50000)
-
-	# print >> sys.stderr, "error num: "+str(error)
-
-	ans = remap(test(xBatch[0]), yHatBatch[0], 180406)
+	ans = remap(test(xBatch[0]), 180406)
 
 	for i in ans:
 		f.write(remapping[i]+"\n")
 
-	print >> sys.stderr, "done writting test"
+	print >> sys.stderr, "done writting test to outputs"
+
+	print >> sys.stderr, "start loading validation data"
 
 
 	trainFile = open("./Data/validation_data_50000", "r")
@@ -306,7 +286,9 @@ if __name__ == "__main__" :
 
 	error = valid(test(xBatch[0]), yHatBatch[0], 50000)
 
-	print >> sys.stderr, "error num: "+str(error)
+	print >> sys.stderr, "Eout: "+str(error/50000.0)
+
+	print >> sys.stderr, "done"
 
 
 
@@ -314,39 +296,3 @@ if __name__ == "__main__" :
 
 
 
-		# Vacost = 0
-		# Error = 0
-		# for i in range(ValibatchNumber):
-		# 	Error += valid(test(xBatch[i]), yHatBatch[i], 6)
-		# print >> sys.stderr, Error/validDataSize
-
-		# for i in range(ValibatchNumber):
-
-
-		# print "--------------------------------"
-	
-	# s = time.time()
-	# for i in range(1000):
-	# 	print "--------"+str(i+1)+"--------"
-	# 	train(x, y_hat)
-	# 	test(x)
-	# 	print w.get_value(), b.get_value()
-	# 	print wy.get_value()
-	# f = time.time()
-
-	# print f-s
-	
-	
-	"""
-	gradient = theano.function(inputs=[x, y_hat], outputs=[dw, db])
-
-	x = [1, -1]
-	y_hat = 1
-	for i in range(10000):
-		print neuron(x)
-		dw, db = gradient(x, y_hat)
-		w.set_value(w.get_value() - 0.1 * dw)
-		b.set_value(b.get_value() - 0.1 * db)
-		print w.get_value(), b.get_value()
-	"""
- 
