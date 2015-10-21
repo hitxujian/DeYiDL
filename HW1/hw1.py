@@ -70,39 +70,28 @@ def mkBatch(xAll, yHatAll, dataSize, batchNumber):
 		xBatch.append([])
 		yHatBatch.append([])
 
-		# for yHatBatch
-		for i in range(48):
-			yHatBatch[batchCnt].append([])
-			for j in range(index, index + batchSize):
-				if j >= allData:
-					flag = True
-					break
-
-				##### means that this should be 0
-				if len(yHatAll)>0:
-					if i != yHatAll[j]:
-						yHatBatch[batchCnt][i].append(0)
-					else:
-						yHatBatch[batchCnt][i].append(1)
-
-		# for xBatch
-		for i in range(dataSize):
-			xBatch[batchCnt].append([])
-			for j in range(index, index + batchSize):
-				if j >= allData:
-					flag = True
-					break
-				xBatch[batchCnt][i].append(xAll[j][i])
-			if flag:
+		
+		for i in range(index, index + batchSize):
+			if i >= allData:
+				flag = True
 				break
+			# for yHatBatch
+			tmp = numpy.zeros(48)
+			tmp[yHatAll[i]] = 1
+			yHatBatch[batchCnt].append(tmp)
+
+			# for xBatch
+			xBatch[batchCnt].append(xAll[i])
 		index += batchSize
 		batchCnt += 1
 	x = []
 	y_hat = []
 	for i in xBatch:
-		x.append(numpy.matrix(i,dtype='float32'))
+		transpose = numpy.transpose(numpy.matrix(i,dtype='float32'))
+		x.append(transpose)
 	for i in yHatBatch:
-		y_hat.append(numpy.matrix(i,dtype='float32'))
+		transpose = numpy.transpose(numpy.matrix(i,dtype='float32'))
+		y_hat.append(transpose)
 
 	return x, y_hat
 		
@@ -146,8 +135,8 @@ def MLRUpdate(learningRate):
 if __name__ == "__main__" :
 
 
-	trainFile = open("./Data/Train.data", "r")
-	labelFile = open("./Data/Train.label", "r")
+	trainFile = open("Validation_data_50000", "r")
+	labelFile = open("Validation_label_50000", "r")
 	mapFile = open("48_39.map", "r")
 
 	mapping, remapping = makeMapping(mapFile)
@@ -218,7 +207,7 @@ if __name__ == "__main__" :
 	#print x.type.dtype
 	#y_hat = numpy.matrix([[0,1],[1,0],[0,0]], dtype='float32')#[[0, 1, 0],[1, 0, 0]]
 	#x = numpy.array(y_hat).astype(dtype='float32')
-	batchNumber = 12929
+	batchNumber = 500#3581#12929
 	# ValibatchNumber = 
 	# validDataSize = 
 	# MiniCost = 1000000
@@ -228,7 +217,7 @@ if __name__ == "__main__" :
 	print >> sys.stderr, "Time: "+str(time.time()-s)
 	print >> sys.stderr, "done loading data"
 
-	for t in range(100):
+	for t in range(10):
 		cost = 0
 		s = time.time()
 		for i in range(batchNumber):
@@ -243,7 +232,7 @@ if __name__ == "__main__" :
 
 	print >> sys.stderr, "done training"
 
-	trainFile = open("./MLDS/fbank/test.ark", "r")
+	#trainFile = open("./MLDS/fbank/test.ark", "r")
 	#labelFile = open("./Data/validation_label_50000", "r")
 	mapFile = open("48_39.map", "r")
 
@@ -251,41 +240,13 @@ if __name__ == "__main__" :
 
 	error = 0
 	for i in range(batchNumber):
-		error += valid(test(xBatch[0]), yHatBatch[0], 87)
+		error += valid(test(xBatch[i]), yHatBatch[i], 100)
 
 	print >> sys.stderr, "error num: "+str(error)
 
-	xAll = []
-	yHatAll = []
-	while(True):
-		tmpLine = trainFile.readline().strip()
-		if tmpLine == "":
-			break
-		features = tmpLine.split()
-		features.pop(0)
-		xAll.append(features)
 
-
-	dataSize = len(xAll[0])
-	xBatch, yHatBatch = mkBatch(xAll, yHatAll, dataSize, 1)
-
-	print >> sys.stderr, "done loading test data"
-	f = open("test_ans","w")
-
-	# error = valid(test(xBatch[0]), yHatBatch[0], 50000)
-
-	# print >> sys.stderr, "error num: "+str(error)
-
-	ans = remap(test(xBatch[0]), yHatBatch[0], 180406)
-
-	for i in ans:
-		f.write(remapping[i]+"\n")
-
-	print >> sys.stderr, "done writting test"
-
-
-	trainFile = open("./Data/validation_data_50000", "r")
-	labelFile = open("./Data/validation_label_50000", "r")
+	trainFile = open("validation_data_50000", "r")
+	labelFile = open("validation_label_50000", "r")
 
 	xAll = []
 	yHatAll = []
