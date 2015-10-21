@@ -3,6 +3,16 @@
 import numpy
 import random
 
+def writeToFile(data, remapping, batchSize, testingIDs, file):
+	for i in range(batchSize):
+		maxValue = 0
+		maxIndex = 0
+		for j in range(48):
+			if data[i][j] > maxValue:
+				maxValue = data[i][j]
+				maxIndex = j
+		f.write()
+
 # batchNumber represents how many batches there are
 # dataSize represents how many features in one data
 def mkBatch(xAll, yHatAll, dataSize, batchNumber):
@@ -10,7 +20,7 @@ def mkBatch(xAll, yHatAll, dataSize, batchNumber):
 	yHatBatch = []
 	index = 0
 	batchCnt = 0
-	allData = len(yHatAll)
+	allData = len(xAll)
 
 	batchSize = allData // batchNumber 
 	if allData % batchNumber != 0:
@@ -23,51 +33,44 @@ def mkBatch(xAll, yHatAll, dataSize, batchNumber):
 		xBatch.append([])
 		yHatBatch.append([])
 
-		# for yHatBatch
-		for i in range(48):
-			yHatBatch[batchCnt].append([])
-			for j in range(index, index + batchSize):
-				if j >= allData:
-					flag = True
-					break
-
-				##### means that this should be 0
-				if i != yHatAll[j]:
-					yHatBatch[batchCnt][i].append(0)
-				else:
-					yHatBatch[batchCnt][i].append(1)
-
-		# for xBatch
-		for i in range(dataSize):
-			xBatch[batchCnt].append([])
-			for j in range(index, index + batchSize):
-				if j >= allData:
-					flag = True
-					break
-				xBatch[batchCnt][i].append(xAll[j][i])
-			if flag:
+		
+		for i in range(index, index + batchSize):
+			if i >= allData:
+				flag = True
 				break
+			# for yHatBatch
+			tmp = numpy.zeros(48)
+			tmp[yHatAll[i]] = 1
+			yHatBatch[batchCnt].append(tmp)
+
+			# for xBatch
+			xBatch[batchCnt].append(xAll[i])
 		index += batchSize
 		batchCnt += 1
 	x = []
 	y_hat = []
 	for i in xBatch:
-		x.append(numpy.matrix(i,dtype='float32'))
+		transpose = numpy.transpose(numpy.matrix(i,dtype='float32'))
+		x.append(transpose)
 	for i in yHatBatch:
-		y_hat.append(numpy.matrix(i,dtype='float32'))
+		transpose = numpy.transpose(numpy.matrix(i,dtype='float32'))
+		y_hat.append(transpose)
 
 	return x, y_hat
 		
 
 def makeMapping(mapFile):
 	mapping = {}
+	remapping = {}
 	for i in range(100000):
 		tmpLine = mapFile.readline().strip()
 		if tmpLine == "":
 			break
-		label = tmpLine.split()[0]
-		mapping[label] = i
-	return mapping
+		label = tmpLine.split()
+
+		mapping[label[0]] = i
+		remapping[i] = label[1]
+	return mapping, remapping
 
 
 
@@ -78,7 +81,9 @@ trainFile = open("miniData", "r")
 labelFile = open("miniTrain", "r")
 mapFile = open("48_39.map", "r")
 
-mapping = makeMapping(mapFile)
+outputFile = open("TESTFILE", "w+")
+
+mapping, remapping = makeMapping(mapFile)
 
 xAll = []
 yHatAll = []
@@ -100,6 +105,9 @@ while(True):
 dataSize = len(xAll[0])
 xBatch, yHatBatch = mkBatch(xAll, yHatAll, dataSize, 10)
 
-print xBatch
-print yHatBatch
+writeToFile()
+
+#print xBatch
+#print yHatBatch
+#print remapping[1]
 
