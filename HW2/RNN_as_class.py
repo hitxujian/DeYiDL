@@ -13,6 +13,7 @@ class RNN(object):
 	def __init__(self, params):
 		self.WB_parameters = []
 		self.INIT_parameters = []
+		self.V_parameters = []
 
 		# learning rate
 		self.mu = float(params[1])
@@ -33,9 +34,15 @@ class RNN(object):
 			dim_next = self.Neuron_Distribution[i+1]
 
 			#w,b means main layer
-			tmpW = theano.shared(np.random.normal(0, 0.1, (dim_now, dim_next)))
-			tmpB = theano.shared(np.random.normal(0, 0.1, (dim_next)))
-			self.WB_parameters += [tmpW, tmpB]
+			w = theano.shared(np.random.normal(0, 0.1, (dim_now, dim_next)))
+			b = theano.shared(np.random.normal(0, 0.1, (dim_next)))
+			self.WB_parameters += [w, b]
+
+			vw = theano.shared( w.get_value())
+			vb = theano.shared( b.get_value())
+
+			self.V_parameters += [vw, vb]
+
 
 			#h means output, in this case, h0, h1, y
 			h = theano.shared(np.zeros(dim_next))
@@ -45,10 +52,14 @@ class RNN(object):
 			if i != len(Neuron_Distribution)-2:
 				#wh, bh means hidden memory layer
 				#wh = theano.shared( np.random.normal(0,1, (dim_next, dim_next)))
-				tmpWh = theano.shared(np.ones((dim_next, dim_next)))
-				tmpBh = theano.shared(np.zeros(dim_next))
-				self.WB_parameters += [tmpWh, tmpBh]
+				wh = theano.shared(np.ones((dim_next, dim_next)))
+				bh = theano.shared(np.zeros(dim_next))
+				self.WB_parameters += [wh, bh]
 
+				vwh = theano.shared(wh.get_value())
+				vbh = theano.shared(bh.get_value())
+
+				self.V_parameters += [vwh, vbh]
 		
 		
 
@@ -108,14 +119,31 @@ class RNN(object):
 				updates=self.MyUpdate(self.WB_parameters,gradients) \
 		)
 
+		Lambda = np.float32(1.)
+
+		#add a momentum
+		nag = theano.function(
+				inputs=[], \
+				on_unused_input="warn", \
+				# v = last w
+				updates=[(w, w + Lambda * (w - v)) for w, v in izip(self.WB_parameters, self.V_parameters)]
+			)
+		#update v = last w
+		nagv = theano.function(
+				inputs=[], \
+				on_unused_input = "warn", \
+				updates=[(v, (1*w + Lambda*v)/(1+Lambda)) for v, w in izip(self.V_parameters, self.WB_parameters)]
+			)
+
 		self.testFunc = test
 		self.trainFunc = train
+		self.nag = nag
+		self.nagv = nagv
 
 		print >> sys.stderr, "Done building RNN"
 
 
 	def train(self, data, labels):
-		Iterations = 5
 
 		for t in range(self.epochs):
 			
@@ -123,19 +151,24 @@ class RNN(object):
 			s = time.time()
 
 			for i in xrange(len(data)):
+				self.nag()
+				self.nagv()
 				cost += self.trainFunc(data[i], labels[i])
 
 			print >> sys.stderr, "iteration:", t
 			print >> sys.stderr, "time:", time.time() - s
 			print >> sys.stderr, "cost:", cost
+			
+			#count Ein...
+			error, errorRate = self.test(data, labels)
+			print >> sys.stderr, "error count:", error
+			print >> sys.stderr, "Ein: " + str(errorRate) 
+			print >> sys.stderr, time.time()
+
 
 		print >> sys.stderr, time.time(), "Done training"
 
-		#count Ein...
-		error, errorRate = self.test(data, labels)
-		print >> sys.stderr, "error count:", error
-		print >> sys.stderr, "Ein: " + str(errorRate) 
-		print >> sys.stderr, time.time()
+			
 
 	"""
 	.test() take data and labels to determine the errors and error rate
@@ -165,10 +198,8 @@ class RNN(object):
 			z = T.dot(now_input,wi) + bi \
 					+ T.dot(h_tm1, wh) + bh
 
-			
 
 			h_t = self.activation(z)
-			#h_t = T.switch(z<0, 0, z) #ReLU
 
 			HY_parameters.append(h_t)
 			now_input = h_t
@@ -306,11 +337,11 @@ if __name__ == "__main__":
 
 
 
-	Neuron_Distribution = [48, 100, 80, 48]
+	Neuron_Distribution = [48, 100, 100, 100, 48]
 
 	# params contains: [Neuron distribution, initial learning rate,
 	# 					activation function, cost function, epochs]
-	params = [Neuron_Distribution, 0.02, "sigmoid", "cross entropy", 1]
+	params = [Neuron_Distribution, 0.2, "sigmoid", "cross entropy", 100]
 
 	rnn = RNN(params)
 
@@ -336,7 +367,7 @@ if __name__ == "__main__":
 
 	#-----------------------------------------------------------------#
 	#-----------------------testing start-----------------------------#
-
+	"""
 	rnn.genAns(TestFile, AnsFile)
 
 	TestFile = "SoftmaxTest.data.pkl"
@@ -360,6 +391,6 @@ if __name__ == "__main__":
 
 	print >> sys.stderr, time.time(), "done writting answer"
 
-
+	"""
 
 
