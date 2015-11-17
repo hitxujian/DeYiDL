@@ -27,7 +27,7 @@ class RNN(object):
 		
 		self.epochs = int(params[4])
 
-
+		
 		if modelPath == None:
 			self.Wi = theano.shared( np.random.uniform(-.1, .1, (48, 256)).astype(dtype='float32'))
 			self.Bi = theano.shared( np.random.uniform(-.1, .1, (256)).astype(dtype='float32'))
@@ -122,7 +122,7 @@ class RNN(object):
 		train = theano.function(
 				inputs=[x_seq,y_hat], \
 				outputs=self.costFunc, \
-				updates=RMSprop(self.costFunc, self.WB_parameters) \
+				updates=RMSprop(self.costFunc, self.WB_parameters, lr=self.mu) \
 		)
 		'''
 		Lambda = np.float32(1.)
@@ -316,7 +316,7 @@ if __name__ == "__main__":
 
 	# params contains: [Neuron distribution, initial learning rate,
 	# 					activation function, cost function, epochs]
-	params = [Neuron_Distribution, 0.1, "ReLU", "cross entropy", 200]
+	params = [Neuron_Distribution, 0.00005, "ReLU", "cross entropy", 200]
 
 	rnn = RNN(params, "myModel.pkl")
 	
