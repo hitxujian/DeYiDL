@@ -10,10 +10,9 @@ import cPickle as pickle
 class RNN(object):
 	# @params contains: [Neuron distribution, initial learning rate,
 	# 					activation function, cost function, epochs]
-	def __init__(self, params):
+	def __init__(self, params, modelPath=None):
 		self.WB_parameters = []
 		self.INIT_parameters = []
-		self.V_parameters = []
 
 		# learning rate
 		self.mu = float(params[1])
@@ -28,67 +27,62 @@ class RNN(object):
 		
 		self.epochs = int(params[4])
 
-		self.Neuron_Distribution = params[0]
-		for i in xrange(len(self.Neuron_Distribution)-1): # i = 0, 1, 2
-			dim_now = self.Neuron_Distribution[i]
-			dim_next = self.Neuron_Distribution[i+1]
 
-			#w,b means main layer
-			w = theano.shared(np.random.normal(0, 0.1, (dim_now, dim_next)))
-			b = theano.shared(np.random.normal(0, 0.1, (dim_next)))
-			self.WB_parameters += [w, b]
-
-			vw = theano.shared( w.get_value())
-			vb = theano.shared( b.get_value())
-
-			self.V_parameters += [vw, vb]
-
-
-			#h means output, in this case, h0, h1, y
-			h = theano.shared(np.zeros(dim_next))
-			self.INIT_parameters.append(h)
-
-			
-			if i != len(Neuron_Distribution)-2:
-				#wh, bh means hidden memory layer
-				#wh = theano.shared( np.random.normal(0,1, (dim_next, dim_next)))
-				wh = theano.shared(np.ones((dim_next, dim_next)))
-				bh = theano.shared(np.zeros(dim_next))
-				self.WB_parameters += [wh, bh]
-
-				vwh = theano.shared(wh.get_value())
-				vbh = theano.shared(bh.get_value())
-
-				self.V_parameters += [vwh, vbh]
+		if modelPath == None:
+			self.Wi = theano.shared( np.random.uniform(-.1, .1, (48, 256)).astype(dtype='float32'))
+			self.Bi = theano.shared( np.random.uniform(-.1, .1, (256)).astype(dtype='float32'))
+			self.Wh = theano.shared(.1*np.identity(256).astype(dtype='float32'))#to identity matrix
+			self.Bh = theano.shared(np.zeros(256).astype(dtype='float32'))
+			self.Wo = theano.shared( np.random.uniform(-.1, .1, (256, 48)).astype(dtype='float32'))
+			self.Bo = theano.shared( np.random.uniform(-.1, .1, (48)).astype(dtype='float32'))
+			self.WB_parameters = [self.Wi, self.Bi, self.Wh, self.Bh, self.Wo, self.Bo]
 		
-		
+		else:
+			self.loadModel(modelPath)
+
+		self.h  = theano.shared(np.zeros(256).astype(dtype='float32'))
+		self.y  = theano.shared(np.zeros(48).astype(dtype='float32'))
+		self.INIT_parameters = [self.h, self.y]
+
 
 	def loadModel(self, fpath):
 		f = file(fpath, 'rb')
-		self.WB_parameters = pickle.load(f)
+		model = pickle.load(f)
+		self.Wi = theano.shared(model[0].get_value())
+		self.Bi = theano.shared(model[1].get_value())
+		self.Wh = theano.shared(model[2].get_value())
+		self.Bh = theano.shared(model[3].get_value())
+		self.Wo = theano.shared(model[4].get_value())
+		self.Bo = theano.shared(model[5].get_value())
+		self.WB_parameters = [self.Wi, self.Bi, self.Wh, self.Bh, self.Wo, self.Bo]
 		f.close()
 
 	def saveModel(self, fpath):
-		f = file(fpath, 'wb')
-		pickle.dump(self.WB_parameters, f, protocol=pickle.HIGHEST_PROTOCOL)
-		f.close()
+		pickle.dump(self.WB_parameters, open(fpath, "wb")) 
+		
 
 	def buildRNN(self):
 		x_seq = T.matrix('input')
 		y_hat = T.matrix('target')
 			
-		#to pass the all parameters to scan function, pack those parameter (encoding)
-		OUTPUTS_INFO, NON_SEQ = self.ScanParaPacker(self.INIT_parameters, self.WB_parameters)
+		def step(x_t, h_tm1, y_tm1):
+			z_t = T.dot(x_t, self.Wi) + self.Bi \
+				+ T.dot(h_tm1, self.Wh) + self.Bh
+			# h_t = sigmoid(z_t)
+			# h_t = T.switch(z_t<0,0.0001,z_t)
+			h_t = self.activation(z_t)
+
+			zy_t = T.dot(h_t, self.Wo) + self.Bo
+			y_t = softmax(zy_t)
+			return h_t, y_t
 		
-		HY_seq,_ = theano.scan(
-							self.step, \
+		
+		[h_seq, y_seq],_ = theano.scan(
+							step, \
 							sequences = x_seq, \
-							outputs_info =  OUTPUTS_INFO, \
-							non_sequences = NON_SEQ, \
+							outputs_info =  [self.h, self.y], \
 							truncate_gradient=-1 \
 		)
-
-		y_seq = HY_seq[-1] #HY_seq[-1] = y_seq
 
 		#y_seq_last = y_seq[-1][0] # we only care about the last output, data dependent
 		y_seq_last = y_seq
@@ -105,8 +99,20 @@ class RNN(object):
 		"""
 		Cost Function decision based on params
 		"""
-		
-		gradients = T.grad(self.costFunc, self.WB_parameters)
+
+
+		def RMSprop(cost, params, lr=0.00005, rho=0.9, epsilon=1e-6):
+			grads = T.grad(cost=cost, wrt=params)
+			updates = []
+			for p, g in zip(params, grads):
+				acc = theano.shared(p.get_value()*0.)
+
+				acc_new = rho * acc + (1 - rho) * g ** 2
+				gradient_scaling = T.sqrt(acc_new + epsilon)
+				g = g / gradient_scaling
+				updates.append((acc, acc_new))
+				updates.append((p, p - lr*T.clip(g,-5, 5)))
+			return updates
 
 		test = theano.function(
 			inputs= [x_seq], \
@@ -116,11 +122,11 @@ class RNN(object):
 		train = theano.function(
 				inputs=[x_seq,y_hat], \
 				outputs=self.costFunc, \
-				updates=self.MyUpdate(self.WB_parameters,gradients) \
+				updates=RMSprop(self.costFunc, self.WB_parameters) \
 		)
-
+		'''
 		Lambda = np.float32(1.)
-
+		
 		#add a momentum
 		nag = theano.function(
 				inputs=[], \
@@ -135,35 +141,45 @@ class RNN(object):
 				updates=[(v, (1*w + Lambda*v)/(1+Lambda)) for v, w in izip(self.V_parameters, self.WB_parameters)]
 			)
 
-		self.testFunc = test
-		self.trainFunc = train
+		
 		self.nag = nag
 		self.nagv = nagv
-
+		'''
+		self.testFunc = test
+		self.trainFunc = train
 		print >> sys.stderr, "Done building RNN"
 
 
 	def train(self, data, labels):
-
+		lastEin = 1
 		for t in range(self.epochs):
 			
 			cost = 0.
 			s = time.time()
 
 			for i in xrange(len(data)):
-				self.nag()
-				self.nagv()
+				#self.nag()
+				#self.nagv()
 				cost += self.trainFunc(data[i], labels[i])
 
-			print >> sys.stderr, "iteration:", t
-			print >> sys.stderr, "time:", time.time() - s
-			print >> sys.stderr, "cost:", cost
+			if np.isnan(cost):
+				print "NAN problem"
+				break
+
+
+			if t % 5 == 0:
+				print >> sys.stderr, "----------- iteration:", t,"----------"
+				print >> sys.stderr, "cost:", cost
+				
+				#count Ein...
+				error, errorRate = self.test(data, labels)
+				print >> sys.stderr, "Ein: " + str(errorRate) + "\n\n"
+
+				if errorRate < lastEin:
+					print "Smaller than last Ein, save model."
+					lastEin = errorRate
+					self.saveModel("myModel.pkl")
 			
-			#count Ein...
-			error, errorRate = self.test(data, labels)
-			print >> sys.stderr, "error count:", error
-			print >> sys.stderr, "Ein: " + str(errorRate) 
-			print >> sys.stderr, time.time()
 
 
 		print >> sys.stderr, time.time(), "Done training"
@@ -183,34 +199,7 @@ class RNN(object):
 		return error, errorRate
 		
 
-	def step(self, x_t, *arg):
-
-		#x_t,INIT_parameters, WB_parameters
-		
-		#decoding, in init_para: [h0,h1,...,y], in wb_para: [w0,b0,wh0,bh0,w1,b1,wh1,bh1,...,wo,bo]
-		INIT_parameters, WB_parameters = self.ScanParaParser(arg)
-		
-		HY_parameters = []
-		now_input = x_t
-		for i in xrange(len(INIT_parameters)-1):
-			[wi, bi, wh, bh] = WB_parameters[4*i:4*i+4]
-			h_tm1 = INIT_parameters[i]
-			z = T.dot(now_input,wi) + bi \
-					+ T.dot(h_tm1, wh) + bh
-
-
-			h_t = self.activation(z)
-
-			HY_parameters.append(h_t)
-			now_input = h_t
-		
-		wo = WB_parameters[-2]
-		bo = WB_parameters[-1]
-
-		y_t = softmax(T.dot(h_t, wo) + bo)
-		HY_parameters.append(y_t)
-		
-		return HY_parameters
+	
 
 
 	def MyUpdate(self, parameters, gradients):
@@ -221,13 +210,12 @@ class RNN(object):
 	def valid(self, ySeq, yHatSeq):
 
 		#here yBatch is a batch, not a list of batches
-		y = np.argmax(ySeq, axis=1)
-		yHat = np.argmax(yHatSeq, axis=1)
-
 		error = 0.
-		for i in xrange(len(y)):
+		for i in xrange(len(yHatSeq)):
 			#because y is array, but yHat is matrix
-			if y[i] != yHat[i, 0]:
+			y = np.argmax(ySeq[i])
+			yHat = np.argmax(yHatSeq[i])
+			if y != yHat:
 				#0/1 error type
 				error += 1.
 
@@ -241,19 +229,6 @@ class RNN(object):
 
 
 
-	def ScanParaPacker(self, INIT_parameters, WB_parameters):
-
-		return INIT_parameters, [len(WB_parameters)] + WB_parameters + [len(INIT_parameters)]
-		
-	def ScanParaParser(self, arg):
-		
-		init_len = int(T.get_scalar_constant_value(arg[-1]))
-		wb_len = int(T.get_scalar_constant_value(arg[0+init_len]))
-
-		INIT_parameters= [arg[i] for i in xrange(0,0+init_len)]
-		WB_parameters = [arg[i] for i in xrange(0+init_len+1,0+init_len+1+wb_len)]
-
-		return INIT_parameters, WB_parameters
 ##########################################################
 
 
@@ -271,10 +246,10 @@ def sigmoid(z):
 	return 1/(1+T.exp(-z))
 
 def softmax(z):
-	return T.exp(-z) / T.sum(T.exp(-z))
+	return T.exp(z) / T.sum(T.exp(z))
 
 def ReLU(z):
-	return T.switch(z<0, 0, z)
+	return T.switch(z<0, 0.001, z)
 
 def tanh(z):
 	return T.tanh(z)
@@ -284,7 +259,7 @@ def loadSeqData(TrainFile, LabelFile, mapping):
 	X = pickle.load(open(TrainFile, "rb"))
 	Xseq = []
 	for seq in X:
-		seq = np.matrix(seq)
+		seq = np.array(seq,dtype='float32')
 		Xseq.append(seq)
 
 	#for label part
@@ -295,10 +270,10 @@ def loadSeqData(TrainFile, LabelFile, mapping):
 	for seq in Y:
 		Seq = []
 		for label in seq:
-			labelvector = [0] * Dim
-			labelvector[mapping[label]] = 1
+			labelvector = [0.] * Dim
+			labelvector[mapping[label]] = 1.
 			Seq.append(labelvector)
-		Seq = np.matrix(Seq)
+		Seq = np.array(Seq,dtype='float32')
 		Yseq.append(Seq)
 
 	return Xseq, Yseq
@@ -308,7 +283,7 @@ def loadSeqTestData(TestFile):
 	X = pickle.load(open(TestFile, "rb"))
 	Xseq = []
 	for seq in X:
-		seq = np.matrix(seq)
+		seq = np.array(seq,dtype='float32')
 		Xseq.append(seq)
 
 	return Xseq
@@ -319,8 +294,8 @@ if __name__ == "__main__":
 	#-----------------------loading data------------------------------#
 
 	#to be continued...
-	TrainFile = "./SoftmaxTrain.data.pkl"
-	LabelFile = "./SoftmaxTrain.lab.pkl"
+	TrainFile = "./train10.data.pkl"
+	LabelFile = "./train10.lab.pkl"
 	MapFile = "./48_39.map"
 	
 	s = time.time()
@@ -337,13 +312,16 @@ if __name__ == "__main__":
 
 
 
-	Neuron_Distribution = [48, 100, 100, 100, 48]
+	Neuron_Distribution = [48, 256, 48]
 
 	# params contains: [Neuron distribution, initial learning rate,
 	# 					activation function, cost function, epochs]
-	params = [Neuron_Distribution, 0.2, "sigmoid", "cross entropy", 100]
+	params = [Neuron_Distribution, 0.1, "ReLU", "cross entropy", 200]
 
-	rnn = RNN(params)
+	rnn = RNN(params, "myModel.pkl")
+	
+	#rnn.loadModel("myModel.pkl")
+
 
 	"""
 	Here you can decide whether to load model, 
@@ -354,6 +332,8 @@ if __name__ == "__main__":
 
 	"""
 	rnn.buildRNN()
+
+	
 
 	#-----------------------------------------------------------------#
 	#-----------------------training start----------------------------#
